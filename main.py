@@ -6,6 +6,7 @@ import numpy as np
 dir = os.path.dirname(os.path.abspath(__file__))
 dirPasta = 'imgsPasta'
 dirPastaCrop = 'imgsCrop'
+dirSinogramas = 'sinogramas'
 
 os.makedirs(dirPastaCrop, exist_ok=True)
 
@@ -30,19 +31,29 @@ for foto in os.listdir(dirPasta):
 
             cv2.imwrite(f'{dirPastaCrop}/crop{foto}', imgCrop)
 
-imgsCombinadas = []
+numGrupo = 99
+contGrupo = 0
 
 imgsFinal = [img  for img in os.listdir(dirPastaCrop) if img.lower().endswith('.jpg')]
 
-for i, imgFinal in enumerate(imgsFinal[:99]):
-    dirCrop = os.path.join(dirPastaCrop, imgFinal)
-    img = cv2.imread(dirCrop)
+if imgsFinal:
+    imgsFinal = imgsFinal[:-1]
 
-    if img is not None:
-        imgsCombinadas.append(img)
+for i in range(0, len(imgsFinal), numGrupo):
+    imgsCombinadas = []
 
-if imgsCombinadas:
-    sinograma = np.hstack(imgsCombinadas)
+    grupoTratado = imgsFinal[i:i+numGrupo]
 
-    dirImgCombinada = os.path.join(dir, 'sinograma.jpg')
-    cv2.imwrite(dirImgCombinada, sinograma)
+    for imgTratada in grupoTratado:
+        dirCrop = os.path.join(dirPastaCrop, imgTratada)
+        img = cv2.imread(dirCrop)
+
+        if img is not None:
+            imgsCombinadas.append(img)
+
+    if imgsCombinadas:
+        sinograma = np.hstack(imgsCombinadas)
+
+        contGrupo += 1
+        dirImgCombinada = os.path.join(dir, f'{dirSinogramas}/sinograma{contGrupo}.jpg')
+        cv2.imwrite(dirImgCombinada, sinograma)
