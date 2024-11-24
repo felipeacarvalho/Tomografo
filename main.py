@@ -1,129 +1,65 @@
-import cv2
 import os
+import cv2
 import numpy as np
-import skimage
+from skimage.transform import radon, iradon
 import matplotlib.pyplot as plt
-import pyvista as pv
 
-dir = os.path.dirname(os.path.abspath(__file__))
-dirPasta = 'imgsPasta'
-dirPastaCrop = 'imgsCrop'
-dirSinogramas = 'sinogramas'
-dirPastaRadon = 'radonPasta'
-dirPastaRadon2 = 'radonPasta2'
+# Diretórios
+dir_imgs = "imgsCrop"  # Diretório de entrada
+dir_sinogramas = "sinogramas"  # Diretório para salvar sinogramas
+dir_reconstrucoes = "reconstrucoes_3d"  # Diretório para salvar reconstruções 3D
 
-numGrupo = 99
-contGrupo = 0
+# Criar diretórios, se necessário
+os.makedirs(dir_sinogramas, exist_ok=True)
+os.makedirs(dir_reconstrucoes, exist_ok=True)
 
-def apply_circular_mask(image):
-    """Aplica uma máscara circular a uma imagem."""
-    h, w = image.shape[:2]
-    mask = np.zeros((h, w), dtype=np.uint8)
-    center = (w // 2, h // 2)
-    radius = min(center)
-    cv2.circle(mask, center, radius, 255, -1)
-    return cv2.bitwise_and(image, image, mask=mask)
+# Listar e ordenar as imagens no diretório
+imagens = sorted([f for f in os.listdir(dir_imgs) if f.endswith('.jpg')])
 
-def enhance_contrast(image):
-    """Aumenta o contraste da imagem."""
-    return cv2.equalizeHist(image)
+# Número de imagens por grupo
+grupo_tamanho = 99
 
-# Verificação para 'teste.jpg'
-caminho_teste = os.path.join(dirPasta, 'teste.jpg')
-imgTeste = cv2.imread(caminho_teste, cv2.IMREAD_GRAYSCALE)
+# Processar as imagens em grupos
+for i in range(0, len(imagens), grupo_tamanho):
+    grupo = imagens[i:i+grupo_tamanho]
+    sinograma_grupo = None
 
-if imgTeste is None:
-    print("Aviso: 'teste.jpg' não foi encontrado ou está corrompido. Gerando uma imagem de teste.")
-    os.makedirs(dirPasta, exist_ok=True)
-    imgTeste = np.zeros((, 3), dtype=np.uint8)  # Imagem preta padrão (400x4 pixels)
-    cv2.imwrite(caminho_teste, imgTeste)
-    print(f"Imagem de teste gerada e salva em: {caminho_teste}")
-else:
-    print(f"Imagem carregada com sucesso! Dimensões: {imgTeste.shape}")
+    # Processar cada imagem do grupo
+    for img_nome in grupo:
+        img_path = os.path.join(dir_imgs, img_nome)
+        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
 
-# Processamento das imagens
-if input('Deseja tratar as imagens novamente? (s/n)') in ['s', 'sim', 'y', 'yes']:
-    os.makedirs(dirPastaCrop, exist_ok=True)
-    os.makedirs(dirSinogramas, exist_ok=True)
-    os.makedirs(dirPastaRadon, exist_ok=True)
+        # Rotacionar a imagem em 88.9 graus
+        altura, largura = img.shape
+        centro = (largura // 2, altura // 2)
+        matriz_rotacao = cv2.getRotationMatrix2D(centro, 88.9, 1.0)
+        img_rotacionada = cv2.warpAffine(img, matriz_rotacao, (largura, altura))
 
-    alt, larg = imgTeste.shape[:2]
-    centro = (larg // 2, alt // 2)
-    angulo = 88.9
+        # Empilhar horizontalmente para formar o sinograma
+        if sinograma_grupo is None:
+            sinograma_grupo = img_rotacionada
+        else:
+            sinograma_grupo = np.hstack((sinograma_grupo, img_rotacionada))
 
-    matrizRotacao = cv2.getRotationMatrix2D(centro, angulo, scale=1)
+    # Salvar o sinograma
+    sinograma_path = os.path.join(dir_sinogramas, f"sinograma_{i//grupo_tamanho:04d}.png")
+    plt.imsave(sinograma_path, sinograma_grupo, cmap='gray')
 
-    for foto in os.listdir(dirPasta):
-        dirFoto = os.path.join(dirPasta, foto)
+    # Calcular a Transformada Inversa de Radon
+    theta = np.linspace(0., 180., sinograma_grupo.shape[1], endpoint=False)
+    reconstruido = iradon(sinograma_grupo, theta=theta, circle=True)
 
-        if foto.lower().endswith('.jpg'):
-            img = cv2.imread(dirFoto, cv2.IMREAD_GRAYSCALE)
+    # Salvar a reconstrução 3D
+    reconstruido_path = os.path.join(dir_reconstrucoes, f"reconstrucao_{i//grupo_tamanho:04d}.npy")
+    np.save(reconstruido_path, reconstruido)
 
-            if img is not None:
-                imgRot = cv2.warpAffine(img, matrizRotacao, (larg, alt))
-                imgCrop = imgRot[0:400, 195:199]
-                imgContrastada = enhance_contrast(imgCrop)
-                imgCircular = apply_circular_mask(imgContrastada)
-                cv2.imwrite(f'{dirPastaCrop}/crop{foto}', imgCircular)
+    # Visualizar a reconstrução 3D (opcional)
+    fig = plt.figure(figsize=(10, 7))
+    ax = fig.add_subplot(111, projection='3d')
+    x, y = np.meshgrid(np.arange(reconstruido.shape[1]), np.arange(reconstruido.shape[0]))
+    ax.plot_surface(x, y, reconstruido, cmap='viridis')
+    ax.set_title(f"Reconstrução 3D - Grupo {i//grupo_tamanho}")
+    plt.savefig(os.path.join(dir_reconstrucoes, f"reconstrucao_{i//grupo_tamanho:04d}.png"))
+    plt.close()
 
-    imgsFinal = [img for img in os.listdir(dirPastaCrop) if img.lower().endswith('.jpg')]
-
-    if imgsFinal:
-        imgsFinal = imgsFinal[:-1]
-
-    for i in range(0, len(imgsFinal), numGrupo):
-        imgsCombinadas = []
-
-        grupoTratado = imgsFinal[i:i+numGrupo]
-
-        for imgTratada in grupoTratado:
-            dirCrop = os.path.join(dirPastaCrop, imgTratada)
-            img = cv2.imread(dirCrop, cv2.IMREAD_GRAYSCALE)
-
-            if img is not None:
-                imgsCombinadas.append(img)
-
-        if imgsCombinadas:
-            sinograma = np.hstack(imgsCombinadas)
-            sinogramaCircular = apply_circular_mask(sinograma)
-            sinogramaContrastado = enhance_contrast(sinogramaCircular)
-
-            contGrupo += 1
-            dirImgCombinada = os.path.join(dir, f'{dirSinogramas}/sinograma{contGrupo}.jpg')
-            cv2.imwrite(dirImgCombinada, sinogramaContrastado)
-
-        theta = np.linspace(0., 180., max(sinogramaContrastado.shape), endpoint=False)
-        imgRadon = skimage.transform.radon(sinogramaContrastado, theta=theta, circle=False)
-        imgRadonContrastada = enhance_contrast((255 * imgRadon / np.max(imgRadon)).astype(np.uint8))
-        imgRadonCircular = apply_circular_mask(imgRadonContrastada)
-
-        dirRadon = os.path.join(dir, f'{dirPastaRadon}/radon{contGrupo}.jpg')
-        cv2.imwrite(dirRadon, imgRadonCircular)
-
-imgsRadon = []
-for arq in os.listdir(dirPastaRadon):
-    if arq.lower().endswith('.jpg'):
-        dirImg = os.path.join(dirPastaRadon, arq)
-        img = cv2.imread(dirImg, cv2.IMREAD_GRAYSCALE)
-        if img is not None:
-            imgsRadon.append(img)
-
-imgsRadon = imgsRadon[:-1]
-
-vol = np.stack(imgsRadon, axis=0)
-
-# Adicionando espessura ao volume
-espessura = 10
-volEspessura = []
-for layer in vol:
-    for _ in range(espessura):
-        volEspessura.append(layer)
-volEspessura = np.stack(volEspessura, axis=0)
-
-# Ajustando opacidade para visualização 3D
-opacity_transfer_function = [0, 0, 0.2, 0.6, 1]
-
-volumePv = pv.wrap(volEspessura)
-plotter = pv.Plotter()
-plotter.add_volume(volumePv, opacity=opacity_transfer_function, cmap='gray')
-plotter.show()
+print("Processamento concluído!")
