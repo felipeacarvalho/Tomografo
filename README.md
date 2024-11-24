@@ -1,32 +1,44 @@
-* Foi proposto aos estudantes, como projeto final da disciplina de Física Elétrica, do curso de Engenharia de Computação, a simulação de um dos mecanismos por trás de tomógrafos de luz. 
+# 🩻 **Simulação de Mecanismo por Trás de Tomógrafos de Luz**  
 
-* Para isto, o meio para o desenvolvimento de tal projeto é a linguagem Python, o uso de suas bibliotecas, e conceitos matemáticos focados em relação à Transformada de Radon.
+## 📘 **Descrição do Projeto**  
+Este projeto foi desenvolvido como parte do trabalho final da disciplina de **Física Elétrica**, no curso de **Engenharia de Computação**. O objetivo foi simular um dos mecanismos essenciais no funcionamento de **tomógrafos de luz**, utilizando:  
+- 🐍 **Python**  
+- 📚 Suas **bibliotecas matemáticas**  
+- 🧮 Conceitos como a **Transformada de Radon**  
 
-1. Recebimento dos arquivos: Os professores realizaram o envio das 2999 imagens, a fim de que estas pudessem ser tratadas, para assim, dar início ao projeto.
-2. Ao finalizar o tratamento das imagens (Recortes e adaptações), elas foram organizadas em 31 Sinogramas (último com uma imagem a menos).
-3. Com os sinogramas prontos, foi necessário aplicar a Transformada de Radon, que consiste em uma técnica matemática usada em processamento de imagens, que desempenha um papel crucial em tomografias computadorizadas
-e reconstrução de imagens médicas. Ela mapeia uma função definida em um espaço 2D (como uma imagem) para o espaço das suas projeções em todas as direções.
+---
 
-* Ou seja, a Transformada de Radon transforma uma imagem 2D f(𝑥,𝑦) em um conjunto de projeções, onde cada projeção representa a integral da função ao longo de uma linha reta em uma dada direção.
-A Transformada de Radon de uma função 
+## 🛠️ **Etapas do Desenvolvimento**  
 
-* Para recuperar a imagem original  𝑓(𝑥,𝑦), utiliza-se a Transformada Inversa de Radon. Realizada por meio de métodos iterativos.
+### 1️⃣ **Recebimento e Tratamento de Imagens**  
+- Os professores forneceram **2.999 imagens**, que passaram por:  
+  - **Recortes e adaptações**  
+  - Organização em **31 sinogramas** (o último com uma imagem a menos)  
 
-4. Em Python:
+### 2️⃣ **Aplicação da Transformada de Radon**  
+A **Transformada de Radon** é uma técnica essencial em processamento de imagens, utilizada na:  
+- **Reconstrução de imagens médicas**  
+- Mapeamento de uma imagem 2D para o espaço de projeções em todas as direções  
 
-* Carregar Imagens:
+### 🔄 **Transformada Inversa de Radon**  
+Para reconstruir a imagem original, utilizou-se a **Transformada Inversa de Radon**, implementada com:  
+- **Métodos iterativos** em Python  
 
+---
 
-* Conversão para Escala de Cinza:
+## 💻 **Implementação em Python**  
+### 🖼️ **Passos principais do projeto**  
+1. **Carregamento das imagens**  
+2. **Conversão para escala de cinza**  
+3. **Aplicação da Transformada de Radon**  
+4. **Empilhamento de dados**  
+5. **Visualização final**  
 
+---
 
-* Transformada de Radon:
+## 📊 **Conceitos Matemáticos Utilizados**  
+A **Transformada de Radon** transforma uma imagem 2D \( f(x, y) \) em um conjunto de projeções:  
+- Cada projeção é a integral da função ao longo de uma linha reta em uma direção específica  
+Para recuperar a imagem original \( f(x, y) \), utilizamos a **Transformada Inversa de Radon**.  
 
-
-* Empilhamento:
-
-
-* Visualização:
-
-
-
+---
