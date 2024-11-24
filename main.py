@@ -4,7 +4,7 @@ import numpy as np
 import skimage
 import matplotlib.pyplot as plt
 import pyvista as pv
-    
+
 dir = os.path.dirname(os.path.abspath(__file__))
 dirPasta = 'imgsPasta'
 dirPastaCrop = 'imgsCrop'
@@ -15,33 +15,58 @@ dirPastaRadon2 = 'radonPasta2'
 numGrupo = 99
 contGrupo = 0
 
-os.makedirs(dirPastaCrop, exist_ok=True)
-os.makedirs(dirSinogramas, exist_ok=True)
-os.makedirs(dirPastaRadon, exist_ok=True)
+def apply_circular_mask(image):
+    """Aplica uma máscara circular a uma imagem."""
+    h, w = image.shape[:2]
+    mask = np.zeros((h, w), dtype=np.uint8)
+    center = (w // 2, h // 2)
+    radius = min(center)
+    cv2.circle(mask, center, radius, 255, -1)
+    return cv2.bitwise_and(image, image, mask=mask)
 
-imgTeste = cv2.imread('imgsPasta/teste.jpg')
-alt, larg = imgTeste.shape[:2]
-centro = (larg // 2, alt // 2)
-angulo = 88.9
-escalaContraste = 1.7
+def enhance_contrast(image):
+    """Aumenta o contraste da imagem."""
+    return cv2.equalizeHist(image)
 
-matrizRotacao = cv2.getRotationMatrix2D(centro, angulo, scale=1)
+# Verificação para 'teste.jpg'
+caminho_teste = os.path.join(dirPasta, 'teste.jpg')
+imgTeste = cv2.imread(caminho_teste, cv2.IMREAD_GRAYSCALE)
 
-if input('Deseja tratar as imagens novamente? (s/n)') == ('s' or 'ss' or 'sim' or 'y' or 'yes'):
+if imgTeste is None:
+    print("Aviso: 'teste.jpg' não foi encontrado ou está corrompido. Gerando uma imagem de teste.")
+    os.makedirs(dirPasta, exist_ok=True)
+    imgTeste = np.zeros((, 3), dtype=np.uint8)  # Imagem preta padrão (400x4 pixels)
+    cv2.imwrite(caminho_teste, imgTeste)
+    print(f"Imagem de teste gerada e salva em: {caminho_teste}")
+else:
+    print(f"Imagem carregada com sucesso! Dimensões: {imgTeste.shape}")
+
+# Processamento das imagens
+if input('Deseja tratar as imagens novamente? (s/n)') in ['s', 'sim', 'y', 'yes']:
+    os.makedirs(dirPastaCrop, exist_ok=True)
+    os.makedirs(dirSinogramas, exist_ok=True)
+    os.makedirs(dirPastaRadon, exist_ok=True)
+
+    alt, larg = imgTeste.shape[:2]
+    centro = (larg // 2, alt // 2)
+    angulo = 88.9
+
+    matrizRotacao = cv2.getRotationMatrix2D(centro, angulo, scale=1)
+
     for foto in os.listdir(dirPasta):
         dirFoto = os.path.join(dirPasta, foto)
 
         if foto.lower().endswith('.jpg'):
-            img = cv2.imread(dirFoto)
+            img = cv2.imread(dirFoto, cv2.IMREAD_GRAYSCALE)
 
             if img is not None:
                 imgRot = cv2.warpAffine(img, matrizRotacao, (larg, alt))
-
                 imgCrop = imgRot[0:400, 195:199]
+                imgContrastada = enhance_contrast(imgCrop)
+                imgCircular = apply_circular_mask(imgContrastada)
+                cv2.imwrite(f'{dirPastaCrop}/crop{foto}', imgCircular)
 
-                cv2.imwrite(f'{dirPastaCrop}/crop{foto}', imgCrop)
-
-    imgsFinal = [img  for img in os.listdir(dirPastaCrop) if img.lower().endswith('.jpg')]
+    imgsFinal = [img for img in os.listdir(dirPastaCrop) if img.lower().endswith('.jpg')]
 
     if imgsFinal:
         imgsFinal = imgsFinal[:-1]
@@ -53,27 +78,27 @@ if input('Deseja tratar as imagens novamente? (s/n)') == ('s' or 'ss' or 'sim' o
 
         for imgTratada in grupoTratado:
             dirCrop = os.path.join(dirPastaCrop, imgTratada)
-            img = cv2.imread(dirCrop)
+            img = cv2.imread(dirCrop, cv2.IMREAD_GRAYSCALE)
 
             if img is not None:
                 imgsCombinadas.append(img)
 
         if imgsCombinadas:
             sinograma = np.hstack(imgsCombinadas)
-            sinogramaCinza = cv2.cvtColor(sinograma, cv2.COLOR_BGR2GRAY)
-            sinogramaNormalizado = cv2.normalize(sinogramaCinza, None, 0, 255, cv2.NORM_MINMAX)
-            sinogramaContrastado = cv2.convertScaleAbs(sinogramaNormalizado, alpha=escalaContraste)
+            sinogramaCircular = apply_circular_mask(sinograma)
+            sinogramaContrastado = enhance_contrast(sinogramaCircular)
 
             contGrupo += 1
             dirImgCombinada = os.path.join(dir, f'{dirSinogramas}/sinograma{contGrupo}.jpg')
             cv2.imwrite(dirImgCombinada, sinogramaContrastado)
 
-        theta = np.linspace(0., 180., max(sinogramaNormalizado.shape), endpoint=False)
-        imgRadon = skimage.transform.radon(sinogramaNormalizado, theta=theta, circle=False)
+        theta = np.linspace(0., 180., max(sinogramaContrastado.shape), endpoint=False)
+        imgRadon = skimage.transform.radon(sinogramaContrastado, theta=theta, circle=False)
+        imgRadonContrastada = enhance_contrast((255 * imgRadon / np.max(imgRadon)).astype(np.uint8))
+        imgRadonCircular = apply_circular_mask(imgRadonContrastada)
 
-        radonNorm = cv2.normalize(imgRadon, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
         dirRadon = os.path.join(dir, f'{dirPastaRadon}/radon{contGrupo}.jpg')
-        cv2.imwrite(dirRadon, radonNorm)
+        cv2.imwrite(dirRadon, imgRadonCircular)
 
 imgsRadon = []
 for arq in os.listdir(dirPastaRadon):
@@ -87,31 +112,18 @@ imgsRadon = imgsRadon[:-1]
 
 vol = np.stack(imgsRadon, axis=0)
 
-camReconstruidas = []
-for imgRadon in imgsRadon:
-    theta = np.linspace(0., 180., imgRadon.shape[1], endpoint=False)
-    camReconstruida = skimage.transform.iradon(imgRadon, theta=theta, circle=False)
-    camReconstruidas.append(camReconstruida)
-    dirRadon2 = os.path.join(dir, f'{dirPastaRadon2}/radon{contGrupo}.jpg')
-    cv2.imwrite(dirRadon2, camReconstruida)
-
-volume = np.stack(imgsRadon, axis=0)
-
-deslocarVolume = np.concatenate((volume[21:], volume[:21]), axis=0)
-
-espessura = 5
-
+# Adicionando espessura ao volume
+espessura = 10
 volEspessura = []
-for layer in deslocarVolume:
+for layer in vol:
     for _ in range(espessura):
         volEspessura.append(layer)
 volEspessura = np.stack(volEspessura, axis=0)
 
+# Ajustando opacidade para visualização 3D
+opacity_transfer_function = [0, 0, 0.2, 0.6, 1]
+
 volumePv = pv.wrap(volEspessura)
 plotter = pv.Plotter()
-#plotter.add_volume(volumePv, opacity='linear')
-#plotter.add_volume(volumePv, opacity='sigmoid')
-plotter.add_volume(volumePv, opacity=[0, 0, 0, 0, 0, 0, 0.8, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-#plotter.add_volume(volumePv, opacity=[0, 0, 0.8, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-#plotter.add_volume(volumePv, opacity=[0, 0, 0, 0, 0, 0, 0, 0, 0.1, 0,7, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+plotter.add_volume(volumePv, opacity=opacity_transfer_function, cmap='gray')
 plotter.show()
