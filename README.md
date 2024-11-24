@@ -16,13 +16,10 @@ Este projeto foi desenvolvido como parte do trabalho final da disciplina de **F�
   - Organização em **31 sinogramas** (o último com uma imagem a menos)  
 
 ### 2️⃣ **Aplicação da Transformada de Radon**  
-A **Transformada de Radon** é uma técnica essencial em processamento de imagens, utilizada na:  
-- **Reconstrução de imagens médicas**  
-- Mapeamento de uma imagem 2D para o espaço de projeções em todas as direções  
+A Transformada de Radon é uma ferramenta matemática que transforma uma função bidimensional (no caso, uma imagem) em um conjunto de suas projeções ao longo de linhas retas em diferentes ângulos., utilizada na:  
+- **Reconstrução de imagens médicas, com ênfase em Tomografia Computadorizada.**  
+- Mapeamento de uma imagem 2D para o espaço de projeções em todas as direções
 
-### 🔄 **Transformada Inversa de Radon**  
-Para reconstruir a imagem original, utilizou-se a **Transformada Inversa de Radon**, implementada com:  
-- **Métodos iterativos** em Python  
 
 ---
 
