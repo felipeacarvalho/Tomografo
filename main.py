@@ -19,19 +19,14 @@ os.makedirs(dirPastaCrop, exist_ok=True)
 os.makedirs(dirSinogramas, exist_ok=True)
 os.makedirs(dirPastaRadon, exist_ok=True)
 
-if input("Deseja tratar as imagens novamente? (s/n)") == ('s' or 'ss' or 'sim' or 'y' or 'yes'):
+imgTeste = cv2.imread('imgsPasta/teste.jpg')
+alt, larg = imgTeste.shape[:2]
+centro = (larg // 2, alt // 2)
+angulo = 88.9
 
-    print('Processando...')
+matrizRotacao = cv2.getRotationMatrix2D(centro, angulo, scale=1)
 
-    imgTeste = cv2.imread('imgsPasta/teste.jpg')
-    alt, larg = imgTeste.shape[:2]
-    centro = (larg // 2, alt // 2)
-    angulo = 88.9
-    fator_contraste = 1.7
-
-    matrizRotacao = cv2.getRotationMatrix2D(centro, angulo, scale=1)
-
-    for foto in os.listdir(dirPasta):
+for foto in os.listdir(dirPasta):
         dirFoto = os.path.join(dirPasta, foto)
 
         if foto.lower().endswith('.jpg'):
@@ -71,12 +66,12 @@ if input("Deseja tratar as imagens novamente? (s/n)") == ('s' or 'ss' or 'sim' o
             dirImgCombinada = os.path.join(dir, f'{dirSinogramas}/sinograma{contGrupo}.jpg')
             cv2.imwrite(dirImgCombinada, sinogramaContrastado)
 
-            theta = np.linspace(0., 180., max(sinogramaNormalizado.shape), endpoint=False)
-            imgRadon = skimage.transform.radon(sinogramaContrastado, theta=theta, circle=False)
+        theta = np.linspace(0., 180., max(sinogramaNormalizado.shape), endpoint=False)
+        imgRadon = skimage.transform.radon(sinogramaNormalizado, theta=theta, circle=False)
 
-            radonNorm = cv2.normalize(imgRadon, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-            dirRadon = os.path.join(dir, f'{dirPastaRadon}/radon{contGrupo}.jpg')
-            cv2.imwrite(dirRadon, radonNorm)
+        radonNorm = cv2.normalize(imgRadon, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+        dirRadon = os.path.join(dir, f'{dirPastaRadon}/radon{contGrupo}.jpg')
+        cv2.imwrite(dirRadon, radonNorm)
 
 imgsRadon = []
 for arq in os.listdir(dirPastaRadon):
