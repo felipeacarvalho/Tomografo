@@ -27,6 +27,7 @@ if input("Deseja tratar as imagens novamente? (s/n)") == ('s' or 'ss' or 'sim' o
     alt, larg = imgTeste.shape[:2]
     centro = (larg // 2, alt // 2)
     angulo = 88.9
+    fator_contraste = 1.7
 
     matrizRotacao = cv2.getRotationMatrix2D(centro, angulo, scale=1)
 
@@ -64,13 +65,14 @@ if input("Deseja tratar as imagens novamente? (s/n)") == ('s' or 'ss' or 'sim' o
             sinograma = np.hstack(imgsCombinadas)
             sinogramaCinza = cv2.cvtColor(sinograma, cv2.COLOR_BGR2GRAY)
             sinogramaNormalizado = cv2.normalize(sinogramaCinza, None, 0, 255, cv2.NORM_MINMAX)
+            sinogramaContrastado = cv2.convertScaleAbs(sinogramaNormalizado, alpha=fator_contraste)
 
             contGrupo += 1
             dirImgCombinada = os.path.join(dir, f'{dirSinogramas}/sinograma{contGrupo}.jpg')
-            cv2.imwrite(dirImgCombinada, (sinogramaNormalizado * 255).astype(np.uint8))
+            cv2.imwrite(dirImgCombinada, sinogramaContrastado)
 
             theta = np.linspace(0., 180., max(sinogramaNormalizado.shape), endpoint=False)
-            imgRadon = skimage.transform.radon(sinogramaNormalizado, theta=theta, circle=False)
+            imgRadon = skimage.transform.radon(sinogramaContrastado, theta=theta, circle=False)
 
             radonNorm = cv2.normalize(imgRadon, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
             dirRadon = os.path.join(dir, f'{dirPastaRadon}/radon{contGrupo}.jpg')
@@ -84,6 +86,8 @@ for arq in os.listdir(dirPastaRadon):
         if img is not None:
             imgsRadon.append(img)
 
+imgsRadon = imgsRadon[:-1]
+
 vol = np.stack(imgsRadon, axis=0)
 
 camReconstruidas = []
@@ -95,7 +99,22 @@ for imgRadon in imgsRadon:
     cv2.imwrite(dirRadon2, camReconstruida)
 
 volume = np.stack(camReconstruidas, axis=0)
-volumePv = pv.wrap(volume)
+
+deslocarVolume = np.concatenate((volume[21:], volume[:21]), axis=0)
+
+espessura = 5
+
+volEspessura = []
+for layer in deslocarVolume:
+    for _ in range(espessura):
+        volEspessura.append(layer)
+volEspessura = np.stack(volEspessura, axis=0)
+
+volumePv = pv.wrap(volEspessura)
 plotter = pv.Plotter()
-plotter.add_volume(volumePv, opacity="sigmoid_3")
+#plotter.add_volume(volumePv, opacity='linear')
+#plotter.add_volume(volumePv, opacity='sigmoid')
+#plotter.add_volume(volumePv, opacity=[0, 0, 0, 0, 0, 0, 0.8, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+#plotter.add_volume(volumePv, opacity=[0, 0, 0.8, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+plotter.add_volume(volumePv, opacity=[0, 0, 0, 0, 0, 0, 0, 0, 0.1, 0,7, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 plotter.show()
