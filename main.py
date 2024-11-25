@@ -61,6 +61,7 @@ if input('Deseja tratar as imagens novamente? (s/n)') == ('s' or 'ss' or 'sim' o
         if imgsCombinadas:
             sinograma = np.hstack(imgsCombinadas)
             sinogramaCinza = cv2.cvtColor(sinograma, cv2.COLOR_BGR2GRAY)
+            sinogramaCinza = 255 - sinogramaCinza
             sinogramaNormalizado = cv2.normalize(sinogramaCinza, None, 0, 255, cv2.NORM_MINMAX)
             sinogramaContrastado = cv2.convertScaleAbs(sinogramaNormalizado, alpha=escalaContraste)
 
@@ -103,10 +104,23 @@ espessura = 5
 
 volEspessura = []
 for layer in deslocarVolume:
-    for _ in range(espessura):
+    for i in range(espessura):
         volEspessura.append(layer)
 volEspessura = np.stack(volEspessura, axis=0)
 
+'''
+fatiaAxial = camReconstruidas[0]
+plt.imshow(fatiaAxial, cmap='gray')
+plt.title("Plano axial")
+plt.axis('off')
+plt.show()
+
+volumePv = pv.wrap(np.array(camReconstruidas))
+slice_z = volumePv.slice_orthogonal(z=50)
+plotter = pv.Plotter()
+plotter.add_mesh(slice_z, cmap="gray")
+plotter.show()
+'''
 volumePv = pv.wrap(volEspessura)
 plotter = pv.Plotter()
 #plotter.add_volume(volumePv, opacity='linear')
