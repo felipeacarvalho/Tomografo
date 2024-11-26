@@ -1,117 +1,114 @@
-import cv2
 import os
+import cv2
 import numpy as np
-import skimage
+from skimage.transform import radon
+from skimage import exposure
+from scipy.ndimage import median_filter  # Import do filtro de mediana
 import matplotlib.pyplot as plt
-import pyvista as pv
-    
-dir = os.path.dirname(os.path.abspath(__file__))
-dirPasta = 'imgsPasta'
-dirPastaCrop = 'imgsCrop'
-dirSinogramas = 'sinogramas'
-dirPastaRadon = 'radonPasta'
-dirPastaRadon2 = 'radonPasta2'
+from mpl_toolkits.mplot3d import Axes3D
 
-numGrupo = 99
-contGrupo = 0
+# Diretórios
+dir_imgs = "imgsCrop"  # Diretório de entrada
+dir_sinogramas = "sinogramas"  # Diretório para salvar sinogramas
+dir_transformadas = "transformadas_radon"  # Diretório para salvar transformadas de Radon
 
-os.makedirs(dirPastaCrop, exist_ok=True)
-os.makedirs(dirSinogramas, exist_ok=True)
-os.makedirs(dirPastaRadon, exist_ok=True)
+# Criar diretórios, se necessário
+os.makedirs(dir_sinogramas, exist_ok=True)
+os.makedirs(dir_transformadas, exist_ok=True)
 
-imgTeste = cv2.imread('imgsPasta/teste.jpg')
-alt, larg = imgTeste.shape[:2]
-centro = (larg // 2, alt // 2)
-angulo = 88.9
-escalaContraste = 1.7
+# Listar e ordenar as imagens no diretório
+imagens = sorted([f for f in os.listdir(dir_imgs) if f.endswith('.jpg')])
 
-matrizRotacao = cv2.getRotationMatrix2D(centro, angulo, scale=1)
+# Número de imagens por grupo (cada sinograma será formado por 99 imagens)
+grupo_tamanho = 99
+transformadas_radon = []  # Lista para armazenar as transformadas de Radon
 
-if input('Deseja tratar as imagens novamente? (s/n)') == ('s' or 'ss' or 'sim' or 'y' or 'yes'):
-    for foto in os.listdir(dirPasta):
-        dirFoto = os.path.join(dirPasta, foto)
+# Processar as imagens em grupos
+for i in range(0, len(imagens), grupo_tamanho):
+    grupo = imagens[i:i + grupo_tamanho]
+    sinograma_grupo = []
 
-        if foto.lower().endswith('.jpg'):
-            img = cv2.imread(dirFoto)
+    # Processar cada imagem do grupo
+    for img_nome in grupo:
+        img_path = os.path.join(dir_imgs, img_nome)
+        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
 
-            if img is not None:
-                imgRot = cv2.warpAffine(img, matrizRotacao, (larg, alt))
+        # Adicionar a imagem ao sinograma (horizontalmente)
+        sinograma_grupo.append(img)
 
-                imgCrop = imgRot[0:400, 195:199]
+    # Empilhar horizontalmente para formar o sinograma
+    sinograma = np.hstack(sinograma_grupo)
 
-                cv2.imwrite(f'{dirPastaCrop}/crop{foto}', imgCrop)
+    # Salvar o sinograma
+    sinograma_path = os.path.join(dir_sinogramas, f"sinograma_{i//grupo_tamanho:04d}.png")
+    plt.imsave(sinograma_path, sinograma, cmap='gray')
 
-    imgsFinal = [img  for img in os.listdir(dirPastaCrop) if img.lower().endswith('.jpg')]
+    # Calcular a Transformada de Radon
+    theta = np.linspace(0., 180., sinograma.shape[1], endpoint=False)
+    transformada = radon(sinograma, theta=theta, circle=True)
 
-    if imgsFinal:
-        imgsFinal = imgsFinal[:-1]
+    # *Aplicar filtro de mediana para reduzir ruído*
+    transformada_filtered = median_filter(transformada, size=3)  # Aplica filtro de mediana com janela 3x3
 
-    for i in range(0, len(imgsFinal), numGrupo):
-        imgsCombinadas = []
+    # Normalizar para o intervalo [0, 1]
+    transformada_normalized = (transformada_filtered - np.min(transformada_filtered)) / (np.max(transformada_filtered) - np.min(transformada_filtered))
 
-        grupoTratado = imgsFinal[i:i+numGrupo]
+    # Melhorar o contraste usando equalização de histograma
+    transformada_contrast = exposure.equalize_adapthist(transformada_normalized, clip_limit=0.03)
 
-        for imgTratada in grupoTratado:
-            dirCrop = os.path.join(dirPastaCrop, imgTratada)
-            img = cv2.imread(dirCrop)
+    # Salvar a transformada de Radon com contraste ajustado
+    transformada_path = os.path.join(dir_transformadas, f"radon_{i//grupo_tamanho:04d}.png")
+    plt.imsave(transformada_path, transformada_contrast, cmap='gray')
 
-            if img is not None:
-                imgsCombinadas.append(img)
+    # Adicionar a transformada à lista para visualização 3D
+    transformadas_radon.append(transformada_contrast)
 
-        if imgsCombinadas:
-            sinograma = np.hstack(imgsCombinadas)
-            sinogramaCinza = cv2.cvtColor(sinograma, cv2.COLOR_BGR2GRAY)
-            sinogramaNormalizado = cv2.normalize(sinogramaCinza, None, 0, 255, cv2.NORM_MINMAX)
-            sinogramaContrastado = cv2.convertScaleAbs(sinogramaNormalizado, alpha=escalaContraste)
+# Visualizar o objeto 3D com espessura de 2 mm por camada
+fig = plt.figure(figsize=(12, 8))
+ax = fig.add_subplot(111, projection='3d')
 
-            contGrupo += 1
-            dirImgCombinada = os.path.join(dir, f'{dirSinogramas}/sinograma{contGrupo}.jpg')
-            cv2.imwrite(dirImgCombinada, sinogramaContrastado)
+# Parâmetros ajustáveis
+light_threshold = 0.25  # Ajuste o limite para partes mais claras (para simular luz)
+dark_threshold = 0.075   # Ajuste o limite para as partes mais escuras (para detalhes profundos)
+thickness = 2  # Espessura em mm de cada camada
+sampling_factor = 0.02  # Fator de amostragem (2% dos pontos serão plotados)
 
-        theta = np.linspace(0., 180., max(sinogramaNormalizado.shape), endpoint=False)
-        imgRadon = skimage.transform.radon(sinogramaNormalizado, theta=theta, circle=False)
+# Processar cada camada de transformada de Radon
+for idx, radon_img in enumerate(transformadas_radon):
+    # Normalizar a intensidade para valores entre 0 e 1
+    radon_img_normalized = (radon_img - np.min(radon_img)) / (np.max(radon_img) - np.min(radon_img))
 
-        radonNorm = cv2.normalize(imgRadon, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-        dirRadon = os.path.join(dir, f'{dirPastaRadon}/radon{contGrupo}.jpg')
-        cv2.imwrite(dirRadon, radonNorm)
+    # Criar máscara baseada nos thresholds
+    mask_included = (radon_img_normalized >= dark_threshold) & (radon_img_normalized < light_threshold)
 
-imgsRadon = []
-for arq in os.listdir(dirPastaRadon):
-    if arq.lower().endswith('.jpg'):
-        dirImg = os.path.join(dirPastaRadon, arq)
-        img = cv2.imread(dirImg, cv2.IMREAD_GRAYSCALE)
-        if img is not None:
-            imgsRadon.append(img)
+    # Filtrar apenas os pontos incluídos
+    radon_img_filtered = radon_img_normalized[mask_included]
 
-imgsRadon = imgsRadon[:-1]
+    # Coordenadas 2D para criar o volume
+    x, y = np.meshgrid(np.arange(radon_img_normalized.shape[1]), np.arange(radon_img_normalized.shape[0]))
+    x_filtered = x[mask_included]
+    y_filtered = y[mask_included]
+    z_filtered = np.full_like(x_filtered, idx * thickness)  # Coordenada Z com base na camada atual
 
-vol = np.stack(imgsRadon, axis=0)
+    # Amostrar pontos para reduzir a densidade (opcional, para gráficos menos densos)
+    total_points = len(x_filtered)
+    sampled_indices = np.random.choice(total_points, size=int(total_points * sampling_factor), replace=False)
 
-camReconstruidas = []
-for imgRadon in imgsRadon:
-    theta = np.linspace(0., 180., imgRadon.shape[1], endpoint=False)
-    camReconstruida = skimage.transform.iradon(imgRadon, theta=theta, circle=False)
-    camReconstruidas.append(camReconstruida)
-    dirRadon2 = os.path.join(dir, f'{dirPastaRadon2}/radon{contGrupo}.jpg')
-    cv2.imwrite(dirRadon2, camReconstruida)
+    # Obter coordenadas amostradas
+    x_sampled = x_filtered[sampled_indices]
+    y_sampled = y_filtered[sampled_indices]
+    z_sampled = z_filtered[sampled_indices]
 
-volume = np.stack(imgsRadon, axis=0)
+    # Plotar os pontos 3D com a cor baseada no valor de intensidade e colormap 'viridis'
+    ax.scatter(x_sampled, y_sampled, z_sampled, 
+               c=plt.cm.viridis(radon_img_filtered[sampled_indices]),  # Colormap 'viridis'
+               marker='o', alpha=0.3, s=20)  # Ajuste o tamanho das bolinhas com s=20 e opacidade com alpha=0.3
 
-deslocarVolume = np.concatenate((volume[21:], volume[:21]), axis=0)
+# Configurações do gráfico 3D
+ax.set_title("Reconstrução 3D com Filtro de Mediana Aplicado")
+ax.set_xlabel("X")
+ax.set_ylabel("Y")
+ax.set_zlabel("Z (mm)")
+plt.show()
 
-espessura = 5
-
-volEspessura = []
-for layer in deslocarVolume:
-    for _ in range(espessura):
-        volEspessura.append(layer)
-volEspessura = np.stack(volEspessura, axis=0)
-
-volumePv = pv.wrap(volEspessura)
-plotter = pv.Plotter()
-#plotter.add_volume(volumePv, opacity='linear')
-#plotter.add_volume(volumePv, opacity='sigmoid')
-plotter.add_volume(volumePv, opacity=[0, 0, 0, 0, 0, 0, 0.8, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-#plotter.add_volume(volumePv, opacity=[0, 0, 0.8, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-#plotter.add_volume(volumePv, opacity=[0, 0, 0, 0, 0, 0, 0, 0, 0.1, 0,7, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-plotter.show()
+print("Processamento concluído!")
